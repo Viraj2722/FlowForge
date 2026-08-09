@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        Spring Boot parent POM.
+        WHY: it acts as a curated "bill of materials" (BOM). It pins compatible
+        versions for hundreds of libraries (Jackson, Hibernate, JUnit, etc.) so
+        we almost never specify <version> ourselves. This avoids "dependency hell".
+        We are on the current Spring Boot 4.1.x line (Spring Framework 7 baseline).
+    -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.0</version>
+        <relativePath/> <!-- always resolve the parent from the repository -->
+    </parent>
+
+    <groupId>com.flowforge</groupId>
+    <artifactId>flowforge</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <name>FlowForge</name>
+    <description>Enterprise Workflow &amp; Job Orchestration Engine</description>
+
+    <properties>
+        <!--
+            Java 21 (current LTS). Records, pattern matching, virtual threads,
+            and sequenced collections are all available and we will use several.
+        -->
+        <java.version>21</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!--
+            spring-boot-starter (NOT -web yet): gives us the Spring context,
+            logging (Logback + SLF4J) and YAML config binding. We intentionally
+            keep Phase 1 minimal - no web, no JPA. Those arrive in later phases.
+            Our engine core will NOT import Spring at all; this is only so the
+            app can boot and so we have a managed logging setup.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!--
+            spring-boot-starter-jdbc: brings in Spring JDBC (JdbcTemplate / JdbcClient),
+            Spring's transaction support, and the HikariCP connection pool. We use this
+            for the reporting/aggregate queries in Phase 2. (JPA arrives in Phase 3 as a
+            SEPARATE starter - we intentionally keep the JDBC and JPA usage explicit.)
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+
+        <!--
+            PostgreSQL JDBC driver. 'runtime' scope: our code never imports driver
+            classes directly (we code to the java.sql / Spring JDBC APIs); the driver is
+            only needed on the classpath when the app actually runs.
+        -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!--
+            Flyway: versioned database migrations. flyway-core is the engine; since
+            Flyway 10 each database family lives in its own module, so PostgreSQL support
+            needs flyway-database-postgresql explicitly. Spring Boot auto-runs migrations
+            on startup. Versions are managed by the Spring Boot BOM.
+        -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <!--
+            Test starter: JUnit 5 (Jupiter), AssertJ, Mockito, Spring Test.
+            Version is managed by the parent BOM. Test-scoped only.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+                Repackages the app into an executable "fat jar" and enables
+                `mvn spring-boot:run`. Version managed by the parent.
+            -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

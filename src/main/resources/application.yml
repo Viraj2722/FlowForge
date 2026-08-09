@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: flowforge
+
+  # ---------------------------------------------------------------------------
+  # Datasource (PostgreSQL). ALL values come from environment variables so that
+  # NO credentials are ever committed. The ${VAR:default} syntax supplies a local
+  # dev default for everything EXCEPT the password (which has no default on purpose
+  # - the app should refuse to start silently with a blank password).
+  #
+  # HikariCP is the pool (bundled with spring-boot-starter-jdbc). A small, bounded
+  # pool is deliberate: the DB, not the app, is usually the scarce resource, so we
+  # cap connections rather than letting them grow unbounded.
+  # ---------------------------------------------------------------------------
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:flowforge}
+    username: ${DB_USERNAME:flowforge}
+    password: ${DB_PASSWORD}
+    hikari:
+      pool-name: flowforge-pool
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN:2}
+      connection-timeout: 10000   # ms to wait for a connection before failing fast
+
+  # ---------------------------------------------------------------------------
+  # Flyway owns the schema. It runs automatically at startup, applying any new
+  # V*__*.sql migrations under classpath:db/migration in version order.
+  # baseline-on-migrate=false: we start from an empty DB and let V1 create it,
+  # so we do NOT want Flyway to silently "baseline" over an existing schema.
+  # ---------------------------------------------------------------------------
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+# Logging: show which migrations Flyway applies, and (only in dev) the SQL that
+# JdbcTemplate issues. Never log credentials.
+logging:
+  level:
+    org.flywaydb: INFO
+    org.springframework.jdbc.core.JdbcTemplate: ${SQL_LOG_LEVEL:INFO}
