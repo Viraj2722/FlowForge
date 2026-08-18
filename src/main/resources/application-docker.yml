@@ -1,0 +1,19 @@
+# Overrides applied when SPRING_PROFILES_ACTIVE=docker (set by docker-compose).
+#
+# The datasource, JWT secret and admin password all come from environment variables
+# (see application.yml + docker-compose.yml). Here we only tune a few things for a
+# containerized run: quieter SQL logging and the schedulers on.
+spring:
+  jpa:
+    show-sql: false
+
+flowforge:
+  scheduler:
+    enabled: true
+  bootstrap-admin:
+    enabled: true
+
+logging:
+  level:
+    org.springframework: INFO
+    com.flowforge: INFO

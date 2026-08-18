@@ -1,4 +1,11 @@
 spring:
+  # Default to the 'local' profile for developer convenience. Locally this loads the
+  # git-ignored application-local.yml (which holds your local DB credentials), so
+  # `mvn spring-boot:run` works with no environment variables. In Docker/production we
+  # set SPRING_PROFILES_ACTIVE explicitly and supply credentials via env vars instead.
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
   application:
     name: flowforge
 
@@ -33,9 +40,71 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: false
 
-# Logging: show which migrations Flyway applies, and (only in dev) the SQL that
-# JdbcTemplate issues. Never log credentials.
+  # ---------------------------------------------------------------------------
+  # JPA / Hibernate. Key production-minded settings:
+  #  * ddl-auto=validate  -> Hibernate NEVER creates/alters tables. Flyway owns the
+  #    schema; Hibernate only checks that its entity mappings match the real columns.
+  #    Startup fails fast if an entity and the schema drift apart - a great safety net.
+  #  * open-in-view=false -> disable the "Open Session In View" anti-pattern. With OSIV
+  #    on, the persistence context stays open during view rendering, hiding N+1s and
+  #    holding a DB connection for the whole request. Off = we must fetch what we need
+  #    inside the transaction, which is what we want.
+  # ---------------------------------------------------------------------------
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: ${JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+
+# ---------------------------------------------------------------------------
+# FlowForge application settings (custom namespace).
+# ---------------------------------------------------------------------------
+flowforge:
+  security:
+    jwt:
+      # HS256 signing secret. MUST be >= 32 bytes. No default here on purpose: supply it
+      # via env (FLOWFORGE_JWT_SECRET) in real environments; the local profile provides a
+      # dev value in the git-ignored application-local.yml so the app runs out of the box.
+      secret: ${FLOWFORGE_JWT_SECRET:}
+      expiration-minutes: ${FLOWFORGE_JWT_EXP_MIN:60}
+  bootstrap-admin:
+    # On startup, create an ADMIN user if none exists. Password from env; dev default only.
+    enabled: ${FLOWFORGE_BOOTSTRAP_ADMIN:true}
+    username: ${FLOWFORGE_ADMIN_USERNAME:admin}
+    email: ${FLOWFORGE_ADMIN_EMAIL:admin@flowforge.local}
+    password: ${FLOWFORGE_ADMIN_PASSWORD:admin12345}
+
+# ---------------------------------------------------------------------------
+# Actuator / observability. We expose only what we need. Health & info are public
+# (see SecurityConfig); metrics/prometheus require authentication.
+# ---------------------------------------------------------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: when_authorized   # anonymous sees only UP/DOWN, not internals
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: FlowForge
+    description: Enterprise Workflow & Job Orchestration Engine
+
+# Logging: include the execution/correlation ids from the MDC so a single execution's
+# log lines are easy to follow across worker threads. Never log credentials/tokens.
 logging:
   level:
     org.flywaydb: INFO
     org.springframework.jdbc.core.JdbcTemplate: ${SQL_LOG_LEVEL:INFO}
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [exec=%X{executionId:-} corr=%X{correlationId:-}] %logger{32} - %msg%n"

@@ -33,6 +33,22 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <!--
+        Testcontainers is not managed by the Spring Boot 4 BOM, so we import its own BOM
+        to keep the module versions aligned without pinning each one.
+    -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>1.20.4</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <!--
             spring-boot-starter (NOT -web yet): gives us the Spring context,
@@ -44,6 +60,74 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!--
+            spring-boot-starter-web: embedded Tomcat + Spring MVC + Jackson. This is
+            what turns FlowForge into a running HTTP service with REST controllers.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!--
+            Spring Security: authentication + authorization. We configure a stateless,
+            JWT-based filter chain (no sessions). The oauth2-resource-server starter brings
+            Spring Security's JWT support (NimbusJwtEncoder/Decoder + JOSE), which we use to
+            sign/verify our own HS256 tokens - cleaner than a third-party JWT lib and it
+            avoids the Jackson 2/3 split in Boot 4.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            spring-boot-starter-validation: Jakarta Bean Validation (Hibernate Validator).
+            Powers @Valid on request DTOs (@NotBlank, @Size, ...), so invalid input is
+            rejected at the edge with a 400 before it ever reaches the service layer.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!--
+            Actuator: production-ready endpoints (health, info, metrics). Micrometer's
+            Prometheus registry exposes /actuator/prometheus for scraping. This is our
+            observability surface.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!--
+            spring-boot-starter-data-jpa: Hibernate (JPA provider) + Spring Data JPA +
+            Spring ORM + transaction management. This is our path for DOMAIN WRITES
+            (create workflow + steps, update execution/task state) where identity,
+            cascades, dirty checking and optimistic locking pay off. Reporting reads
+            still go through plain JDBC (Phase 2). Also transitively provides Jackson,
+            which Hibernate uses to bind JSON columns.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
         <!--
@@ -69,14 +153,19 @@
         </dependency>
 
         <!--
-            Flyway: versioned database migrations. flyway-core is the engine; since
-            Flyway 10 each database family lives in its own module, so PostgreSQL support
-            needs flyway-database-postgresql explicitly. Spring Boot auto-runs migrations
-            on startup. Versions are managed by the Spring Boot BOM.
+            Flyway: versioned database migrations, auto-run by Spring Boot at startup.
+
+            IMPORTANT (Spring Boot 4 change): Boot 4 split its once-monolithic
+            auto-configuration into per-technology modules. As a result, adding raw
+            'flyway-core' is NO LONGER enough to get auto-migration - the Flyway
+            auto-configuration now lives in the 'spring-boot-starter-flyway' module.
+            So we depend on the STARTER (which brings flyway-core + the autoconfig),
+            plus 'flyway-database-postgresql' because since Flyway 10 each database
+            family ships as its own module. Versions are managed by the Spring Boot BOM.
         -->
         <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>
@@ -92,6 +181,23 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!--
+            Testcontainers: spins up a REAL, throwaway PostgreSQL in Docker for
+            integration tests, so they don't depend on a hand-configured local DB. The
+            container tests self-skip when Docker isn't available (disabledWithoutDocker).
+            Versions are managed by the Spring Boot BOM.
+        -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -103,6 +209,19 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!--
+                Silence the JDK's "dynamic agent loading" warning that appears because
+                Spring/Mockito attach an agent at runtime during tests. This is cosmetic;
+                it does not change test behaviour.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
+                </configuration>
             </plugin>
         </plugins>
     </build>

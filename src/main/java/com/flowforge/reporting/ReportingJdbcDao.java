@@ -92,15 +92,22 @@ public class ReportingJdbcDao {
                 ORDER BY total_executions DESC, w.id
                 LIMIT ?
                 """;
-        RowMapper<WorkflowThroughput> mapper = (rs, rowNum) -> new WorkflowThroughput(
-                rs.getLong("workflow_id"),
-                rs.getString("workflow_name"),
-                rs.getLong("total_executions"),
-                rs.getLong("succeeded"),
-                rs.getLong("failed"),
-                // getObject(..., Double.class) preserves SQL NULL as Java null,
-                // unlike getDouble() which would silently return 0.0.
-                rs.getObject("avg_duration_seconds", Double.class));
+        RowMapper<WorkflowThroughput> mapper = (rs, rowNum) -> {
+            // avg() over EXTRACT(EPOCH ...) returns SQL 'numeric'. We read it as a
+            // BigDecimal (the type the driver maps numeric to) and convert. We do NOT
+            // use rs.getObject(col, Double.class) because the PostgreSQL driver refuses
+            // to convert numeric -> Double, and we avoid rs.getDouble() because it would
+            // turn a SQL NULL (a workflow with no finished runs) into a misleading 0.0.
+            java.math.BigDecimal avg = rs.getBigDecimal("avg_duration_seconds");
+            Double avgSeconds = (avg == null) ? null : avg.doubleValue();
+            return new WorkflowThroughput(
+                    rs.getLong("workflow_id"),
+                    rs.getString("workflow_name"),
+                    rs.getLong("total_executions"),
+                    rs.getLong("succeeded"),
+                    rs.getLong("failed"),
+                    avgSeconds);
+        };
         return jdbc.query(sql, mapper, limit);
     }
 

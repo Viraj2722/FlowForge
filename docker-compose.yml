@@ -1,0 +1,51 @@
+# FlowForge local stack: the app + its PostgreSQL, wired together.
+#
+#   docker compose up --build
+#
+# Secrets are read from your shell/.env (with dev-only fallbacks). For anything real,
+# set FLOWFORGE_JWT_SECRET, DB_PASSWORD and FLOWFORGE_ADMIN_PASSWORD to strong values.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-flowforge}
+      POSTGRES_USER: ${DB_USERNAME:-flowforge}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-flowforge}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # The app waits for this to pass before starting (see depends_on below).
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-flowforge} -d ${DB_NAME:-flowforge}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-flowforge}
+      DB_USERNAME: ${DB_USERNAME:-flowforge}
+      DB_PASSWORD: ${DB_PASSWORD:-flowforge}
+      # DEV fallback secret only. Override in real environments.
+      FLOWFORGE_JWT_SECRET: ${FLOWFORGE_JWT_SECRET:-docker-compose-dev-secret-change-me-0123456789abcdef}
+      FLOWFORGE_ADMIN_PASSWORD: ${FLOWFORGE_ADMIN_PASSWORD:-admin12345}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  pgdata:

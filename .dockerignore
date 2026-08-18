@@ -1,0 +1,11 @@
+# Keep the build context small and avoid leaking local files into the image.
+target/
+.git/
+.idea/
+*.iml
+*.iws
+*.ipr
+.env
+docs/
+*.md
+!pom.xml

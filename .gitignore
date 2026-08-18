@@ -1,8 +1,30 @@
-target/
+# Build output
+/target/
+**/target/
+*.class
+*.log
+*.tmp
+*.bak
+hs_err_pid*
+
+# IDE/editor metadata
+/.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.kotlin
+
+# Local env and secrets
+.env
+*.env
+!.env.example
+application-local.yml
+application-local.properties
+
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
-.kotlin
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
